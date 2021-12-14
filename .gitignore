@@ -1,12 +1,17 @@
 *.bat
 *.ui
+*.exe
 .vscode/
-Engine/
 .BeatSaberMapMixer/
 SoundPlayer.py
 cover.png
+main.spec
+main.exe
 Logs/
 tmp/
+dist/
+build/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
