@@ -1,0 +1,39 @@
+{
+    "_version": "2.2.0",
+    "_songName": "unknow",
+    "_songSubName": "",
+    "_songAuthorName": "unknow",
+    "_levelAuthorName": "unknow",
+    "_beatsPerMinute": 100.0,
+    "_shuffle": 0,
+    "_shufflePeriod": 0.5,
+    "_previewStartTime": 12,
+    "_previewDuration": 10,
+    "_songFilename": "song.ogg",
+    "_coverImageFilename": "cover.png",
+    "_environmentName": "DefaultEnvironment",
+    "_songTimeOffset": 0,
+    "_customData": {},
+    "_difficultyBeatmapSets": [
+      {
+        "_beatmapCharacteristicName": "Standard",
+        "_difficultyBeatmaps": [
+          {
+            "_difficulty": "Easy",
+            "_difficultyRank": 1,
+            "_beatmapFilename": "EasyStandard.dat",
+            "_noteJumpMovementSpeed": 12,
+            "_noteJumpStartBeatOffset": 0,
+            "_customData": {
+              "_editorOffset": 0,
+              "_editorOldOffset": 0,
+              "_warnings": [],
+              "_information": [],
+              "_suggestions": [],
+              "_requirements": ["Noodle Extensions", "Chroma"]
+            }
+          }
+        ]
+      }
+    ]
+  }
