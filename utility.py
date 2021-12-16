@@ -24,7 +24,7 @@ INFORESOURCE = os.path.join(RESOURCE,INFOFILE)
 MAPRESOURCE = os.path.join(RESOURCE,MAPFILE)
 COVERRESOURCE = os.path.join(RESOURCE,'cover')
 
-
+COMANDS = ['start','end','xfade','fadein','fadeout','silence']
 
 #pydubのimport前にbinにパスを通す
 os.environ['PATH'] = '{};{}'.format(EGNPATH, os.environ['PATH'])

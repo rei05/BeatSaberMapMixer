@@ -9,7 +9,7 @@
 #   uic.exe main.ui -o ui.py -g python
 ############################################################
 
-import os,sys,textwrap
+import os,sys,textwrap,time
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QMessageBox
 from ui import Ui_MainWindow
@@ -31,18 +31,18 @@ class UI(QtWidgets.QMainWindow):
         self.songs = [None]*32
 
         ToolTipDuration = 30000
-        self.ui.startLabel.setToolTip('<b>*start</b><br>曲の開始位置をbeat単位で指定します。')
-        self.ui.endLabel.setToolTip('<b>*end</b><br>曲の終了位置をbeat単位で指定します。')
+        self.ui.startLabel.setToolTip('<b>*start</b><br>曲の開始位置をbeatで指定します。')
+        self.ui.endLabel.setToolTip('<b>*end</b><br>曲の終了位置をbeatで指定します。')
         self.ui.xfadeLabel.setToolTip('<b>*xfade</b><br>前の曲とのクロスフェードにかける時間長をbeat単位で指定します。')
-        self.ui.fadeinLabel.setToolTip('<b>*fadein</b><br>*startで指定されている開始位置から指定のbeat時間かけてフェードインします。')
-        self.ui.fadeoutLabel.setToolTip('<b>*fadeout</b><br>*endで指定されている終了位置に向かって指定のbeat時間かけてフェードアウトします。')
-        self.ui.presilenceLabel.setToolTip('<b>*presilence</b><br>指定の秒数だけ*startで指定されている開始位置より前に無音区間を挿入します。')
+        self.ui.fadeinLabel.setToolTip('<b>*fadein</b><br>フェードインの終了位置をbeatで指定します。')
+        self.ui.fadeoutLabel.setToolTip('<b>*fadeout</b><br>フェードアウトの開始位置をbeatで指定します。')
+        self.ui.silenceLabel.setToolTip('<b>*silence</b><br>*endの直後に挿入する無音区間の長さをbeatで指定します。負の数を指定した場合は*startの直前に挿入します。')
         self.ui.startLabel.setToolTipDuration(ToolTipDuration)
         self.ui.endLabel.setToolTipDuration(ToolTipDuration)
         self.ui.xfadeLabel.setToolTipDuration(ToolTipDuration)
         self.ui.fadeinLabel.setToolTipDuration(ToolTipDuration)
         self.ui.fadeoutLabel.setToolTipDuration(ToolTipDuration)
-        self.ui.presilenceLabel.setToolTipDuration(ToolTipDuration)
+        self.ui.silenceLabel.setToolTipDuration(ToolTipDuration)
 
         self.ui.addButton.clicked.connect(self.click_addButton)
         self.ui.deleteButton.clicked.connect(self.click_deleteButton)
@@ -62,8 +62,7 @@ class UI(QtWidgets.QMainWindow):
     
     # マップ選択ボタン
     def click_addButton(self):
-        selected_dir = SelectDir(self, 'マップ選択', 'input_dir', i_split=1)
-        if not selected_dir:
+        if not (selected_dir := SelectDir(self, 'マップ選択', 'input_dir', i_split=1)):
             log.info('マップ読み込みはキャンセルされました。')
             return 0
 
@@ -79,6 +78,8 @@ class UI(QtWidgets.QMainWindow):
         map.len = song.len
         map.len_beat = msec2beat(map.len, map.bpm)
         map.CommandParse()
+
+        # 表示系更新
         self.disconnect_parameter()
         self.clear_map_info()
         self.set_map_info()
@@ -112,9 +113,9 @@ class UI(QtWidgets.QMainWindow):
         self.ui.startSpinBox.setValue(map.start)
         self.ui.endSpinBox.setValue(map.end)
         self.ui.xfadeSpinBox.setValue(map.xfade)
-        self.ui.fadeinSpinBox.setValue(map.fadein - map.start)
-        self.ui.fadeoutSpinBox.setValue(map.end - map.fadeout)
-        self.ui.presilenceSpinBox.setValue(map.presilence)
+        self.ui.fadeinSpinBox.setValue(map.fadein)
+        self.ui.fadeoutSpinBox.setValue(map.fadeout)
+        self.ui.silenceSpinBox.setValue(map.silence)
         self.ui.startSpinBox.setEnabled(True)
         self.ui.endSpinBox.setEnabled(True)
         if self.iSlot != 0:
@@ -123,7 +124,7 @@ class UI(QtWidgets.QMainWindow):
             self.ui.xfadeSpinBox.setEnabled(False)
         self.ui.fadeinSpinBox.setEnabled(True)
         self.ui.fadeoutSpinBox.setEnabled(True)
-        self.ui.presilenceSpinBox.setEnabled(True)
+        self.ui.silenceSpinBox.setEnabled(True)
 
         self.connect_parameter()
 
@@ -150,10 +151,10 @@ class UI(QtWidgets.QMainWindow):
         map.offset = selected_level['offset']
         map.start = selected_level['start']
         map.end = selected_level['end']
-        map.xfade = selected_level['xfade']
-        map.fadein = max(selected_level['fadein'] - selected_level['start'], 0)
-        map.fadeout = max(selected_level['end'] - selected_level['fadeout'], 0)
-        map.presilence = selected_level['presilence']
+        map.xfade = map.start
+        map.fadein = map.start
+        map.fadeout = map.end
+        map.silence = selected_level['silence']
 
         self.ui.NJSSpinBox.setValue(map.njs)
         self.ui.OffsetSpinBox.setValue(map.offset)
@@ -163,10 +164,10 @@ class UI(QtWidgets.QMainWindow):
         self.ui.xfadeSpinBox.setValue(map.xfade)
         self.ui.fadeinSpinBox.setValue(map.fadein)
         self.ui.fadeoutSpinBox.setValue(map.fadeout)
-        self.ui.presilenceSpinBox.setValue(map.presilence)
+        self.ui.silenceSpinBox.setValue(map.silence)
         
         self.connect_parameter()
-        log.info(f'level:{map.level}')
+        log.info(f'レベル選択: {map.level}')
 
     # SpinBox内容の変更を検知したとき呼ばれる
     def update_parameter(self):
@@ -181,10 +182,11 @@ class UI(QtWidgets.QMainWindow):
         map.xfade = self.ui.xfadeSpinBox.value()
         map.fadein = self.ui.fadeinSpinBox.value()
         map.fadeout = self.ui.fadeoutSpinBox.value()
-        map.presilence = self.ui.presilenceSpinBox.value()
+        map.silence = self.ui.silenceSpinBox.value()
         log.debug(f'NJS:{map.njs} OFFSET:{map.offset}')
         log.debug(f'*start:{map.start} *end:{map.end}')
-        log.debug(f'*fadein:{map.fadein} *fadeout:{map.fadeout} *xfade:{map.xfade}')
+        log.debug(f'*fadein:{map.fadein} *fadeout:{map.fadeout}')
+        log.debug(f'*xfade:{map.xfade} *silence:{map.fadeout}')
 
     def setDefaultNJS(self):
         log.info('NJSを既定値に戻す')
@@ -211,7 +213,7 @@ class UI(QtWidgets.QMainWindow):
         self.ui.xfadeSpinBox.textChanged.connect(self.update_parameter)
         self.ui.fadeinSpinBox.textChanged.connect(self.update_parameter)
         self.ui.fadeoutSpinBox.textChanged.connect(self.update_parameter)
-        self.ui.presilenceSpinBox.textChanged.connect(self.update_parameter)
+        self.ui.silenceSpinBox.textChanged.connect(self.update_parameter)
 
     # comboBox/SpinBoxの内容変更の検知を無効にする
     def disconnect_parameter(self):
@@ -225,7 +227,7 @@ class UI(QtWidgets.QMainWindow):
         self.ui.xfadeSpinBox.textChanged.disconnect()
         self.ui.fadeinSpinBox.textChanged.disconnect()
         self.ui.fadeoutSpinBox.textChanged.disconnect()
-        self.ui.presilenceSpinBox.textChanged.disconnect()
+        self.ui.silenceSpinBox.textChanged.disconnect()
 
     # スロット表示＆移動ボタンの更新
     def update_slot(self):
@@ -236,7 +238,9 @@ class UI(QtWidgets.QMainWindow):
             self.ui.backButton.setEnabled(True)
         
         # カレントスロットが空(最後尾)orスロット数MAXなら進めない
-        if (self.maps[self.iSlot] is None)|(self.iSlot == len(self.maps)-1):
+        # len(self.maps)-2：
+        # ConcatenateMaps()内のループでmaps配列末尾への参照が発生するため
+        if (self.maps[self.iSlot] is None)|(self.iSlot == len(self.maps)-2):
             self.ui.nextButton.setText('╋')
             self.ui.nextButton.setEnabled(False)
         else:
@@ -281,13 +285,13 @@ class UI(QtWidgets.QMainWindow):
         self.ui.xfadeSpinBox.clear()
         self.ui.fadeinSpinBox.clear()
         self.ui.fadeoutSpinBox.clear()
-        self.ui.presilenceSpinBox.clear()
+        self.ui.silenceSpinBox.clear()
         self.ui.startSpinBox.setEnabled(False)
         self.ui.endSpinBox.setEnabled(False)
         self.ui.xfadeSpinBox.setEnabled(False)
         self.ui.fadeinSpinBox.setEnabled(False)
         self.ui.fadeoutSpinBox.setEnabled(False)
-        self.ui.presilenceSpinBox.setEnabled(False)
+        self.ui.silenceSpinBox.setEnabled(False)
 
         if self.maps[0] is None:
             self.ui.lineEdit.setEnabled(False)
@@ -384,25 +388,40 @@ class UI(QtWidgets.QMainWindow):
         if save_name == '':
             QMessageBox.information(self.ui, '保存名未指定', '保存名を指定してください!', QMessageBox.Ok)
 
-        selected_dir = SelectDir(self, '保存先選択', 'output_dir', i_split=0)
-        if len(selected_dir) == 0:
+        if not (selected_dir := SelectDir(self, '保存先選択', 'output_dir', i_split=0)):
             log.info('出力はキャンセルされました')
             return 0
+
         output_path = os.path.join(selected_dir, save_name)
+
+        self.ui.outputButton.setEnabled(False)
+        self.ui.outputButton.setText('出力中...')
+
         if CheckOverwrite(output_path):
             self.output_map(output_path)
 
-    # 不正なコマンド設定を防止する
-    def CommandCheck(self, map):
-        if map.end < map.start:
-            pass
-        if map.xfade < map.start:
-            pass
+        self.ui.outputButton.setEnabled(True)
+        self.ui.outputButton.setText('出力')
 
+    # 不正なコマンド設定を確認
+    def CommandCheck(self, map):
+        for com in ['start','end','xfade','fadein','fadeout']:
+            if eval('map.'+com) < map.start:
+                log.error(f'{map.songname}')
+                log.error(f'*{com} は *start より後ろの位置を指定してください！')
+                return False
+            if eval('map.'+com) > map.end:
+                log.error(f'{map.songname}')
+                log.error(f'*{com} は *end より前の位置を指定してください！')
+                return False
+        if map.end == map.start:
+            log.error(f'{map.songname}')
+            log.error('*end は *start より後ろの位置を指定してください！')
+            return False
+        return True
 
     # マップ生成＆音声結合
     def output_map(self,output_path):
-
         # 選択されたレベルのコマンド情報を取得
         map_list = [map for map in self.maps if map is not None]
         song_list = [song for song in self.songs if song is not None]
@@ -410,32 +429,41 @@ class UI(QtWidgets.QMainWindow):
         for i in range(n_map):
             map = map_list[i]
             song = song_list[i]
-            if map.end < map.start:
-                pass
-            if map.xfade < map.start:
-                pass
-            if i < n_map-1:
-                next_map = map_list[i+1]
-                b_next_xfade = next_map.levels[next_map.level]['xfade'] - next_map.levels[next_map.level]['start']
-                map.end -= (b_next_xfade/2)*(next_map.bpm/map.bpm)
 
-            song.start = map.start
-            song.end = map.end
-            song.fadein = map.fadein
-            song.fadeout = map.fadeout
-            song.xfade = map.xfade
-            song.presilence = map.presilence
+            log.debug(f'{map.songname}')
 
+            if not self.CommandCheck(map):
+                QMessageBox.warning(None, "コマンドエラー", "コマンドの値が不正です！\nERRORログを確認してください！", QMessageBox.Ok)
+                return 0
+
+            map.len = beat2msec(map.end - map.start, map.bpm)
+
+            #if i < n_map-1:
+            #    next_map = map_list[i+1]
+            #    b_next_xfade = next_map.levels[next_map.level]['xfade'] - next_map.levels[next_map.level]['start']
+            #    map.end -= (b_next_xfade/2)*(next_map.bpm/map.bpm)
+
+            # mapのコマンド情報をsongへ渡す
+            for com in COMANDS:
+                exec('song.'+com+'=map.'+com)
+
+            for com in COMANDS:
+                log.debug(f'*{com}:{eval("map."+com)}')
+
+        # マップ処理
+        newmap = NewMap(output_path, map_list)
+        newmap.ConcatenateMaps()
+
+        # 音声処理
         EditSound(song_list)
         new_sound = ConcatenateSongs(song_list)
-        log.info('oggファイル出力中...')
-        output_song_file = os.path.join(output_path,"song.ogg")
-        new_sound.export(output_song_file, format="ogg")
-        log.info('oggファイル出力完了！')
+        newmap.sound = new_sound
 
-        for map,song in zip(map_list,song_list):
-            map.len = song.len
-        NewMap(output_path, map_list)
+        newmap.OutputMap()
+        log.info('マップ出力が完了しました！')
+
+        QMessageBox.information(None, "出力", "出力完了！", QMessageBox.Ok)
+
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ class Map():
         self.fadein     = None # [beat]
         self.fadeout    = None # [beat]
         self.xfade      = None # [sec]
-        self.presilence = None # [sec]
+        self.silence    = None # [beat]
         self.info_data = self.ReadDat('info.dat')
         if self.info_data:
             if self.ReadInfo():
@@ -93,9 +93,8 @@ class Map():
             self.levels[levelname]['xfade'] = 0
             self.levels[levelname]['fadein'] = 0
             self.levels[levelname]['fadeout'] = self.len_beat
-            self.levels[levelname]['presilence'] = 0
+            self.levels[levelname]['silence'] = 0
 
-        commands = ['start','end','xfade','fadein','fadeout','presilence']
         for levelname in self.levels.keys():
 
             log.info(f'{levelname}')
@@ -107,7 +106,7 @@ class Map():
             if len(map_data['_customData']['_bookmarks'])==0:
                 continue
 
-            for com in commands:
+            for com in COMANDS:
                 exec(com + '= []')
 
             for bookmark in map_data['_customData']['_bookmarks']:
@@ -117,8 +116,8 @@ class Map():
                     continue
                 if name[0] == '*':
                     com_detected = False
-                    for com in commands:
-                        if name[1:] == com:
+                    for com in COMANDS:
+                        if com in name[1:]:
                             log.info(f'{com}コマンド検出 @{time}')
                             eval(com).append(time)
                             com_detected = True
@@ -126,12 +125,23 @@ class Map():
                         log.error(f'未定義のコマンド {name} @{time}')
 
             # 同じコマンドが複数ある場合は最後(timeが最大)のものを適用
-            for com in commands:
+            for com in COMANDS:
                 if len(eval(com)) > 0:
                     level[com] = max(eval(com))
 
+            # silenceコマンドのパース
+            for bookmark in map_data['_customData']['_bookmarks']:
+                time = bookmark['_time']
+                name = bookmark['_name']
+                if time==level['silence']:
+                    try:
+                        level['silence'] = float(name[8:])
+                    except:
+                        log.error(f'silenceコマンドのパラメータが不正です！　@{time}')
+                        level['silence'] = 0
+
         # UI表示の初期値をセット
-        for com in commands:
+        for com in COMANDS:
             exec('self.' + com + ' = self.levels[self.level]["' + com + '"]')
             
         log.info('ブックマークコマンド検出完了')
@@ -140,14 +150,11 @@ class Map():
 
     # Noodle変換
     def ConvertMap(self):
-        log.info(f'noodle変換： {self.songname}')
-        log.debug(f'map.len: {msec2timestr(self.len)}')
-        log.debug(f'map.bpm: {self.bpm}')
         map_data = copy.deepcopy(self.levels[self.level]['dat'])
 
         # BPMChanges
-        log.debug(f'self.start: {self.start}')
-        BPMChangetime = self.ConvertTiming(self.start + msec2beat(self.xfade/2, self.bpm))
+        #BPMChangetime = self.ConvertTiming(self.start + msec2beat(self.xfade/2, self.bpm))
+        BPMChangetime = self.ConvertTiming(self.start - max(0, -self.silence))
         BPMChanges = [{"_BPM":self.bpm,"_time":BPMChangetime,"_beatsPerBar":4,"_metronomeOffset":4}]
         if '_BPMChanges' in map_data['_customData'].keys():
             for BPMChange in map_data['_customData']['_BPMChanges']:
@@ -159,7 +166,8 @@ class Map():
         map_data['_customData']['_BPMChanges'] = BPMChanges
 
         # bookmarks
-        bookmarktime = self.ConvertTiming(self.start + msec2beat(self.xfade/2, self.bpm))
+        #bookmarktime = self.ConvertTiming(self.start + msec2beat(self.xfade/2, self.bpm))
+        bookmarktime = self.ConvertTiming(self.start - max(0, -self.silence))
         map_data['_customData']['_bookmarks'] = [{"_time":bookmarktime,"_name":self.songname}]
         
         # pointDefinitions
@@ -208,7 +216,8 @@ class Map():
 
     # トリミングによるオブジェクトの削除判定
     def IsDelete(self,t):
-        return (t < self.start + msec2beat(self.xfade*(3/4), self.bpm)) | (t >= self.end)
+        #return (t < self.start + msec2beat(self.xfade*(3/4), self.bpm)) | (t >= self.end)
+        return (t < self.start) | (t >= self.end)
 
     # タイミング変換
     def ConvertTiming(self,b,timeoffset=None):
@@ -253,6 +262,7 @@ class NewMap():
         self.dir = dir
         self.maplist = maplist
         self.map_data = None
+        self.sound = None
         global DefaultBPM
         # NJSがBPMの15%以上だとオフセット変更できない
         # -> 結合するマップの中で最大のNJSが全体BPMの15%以下の値になるようにする
@@ -262,8 +272,6 @@ class NewMap():
             self.info = json.load(f)
         self.info['_beatsPerMinute'] = DefaultBPM
         self.info['_difficultyBeatmapSets'][0]['_difficultyBeatmaps'][0]['_noteJumpMovementSpeed'] = DefaultNJS
-        self.ConcatenateMaps()
-        self.CreateMap()
 
     # マップ結合
     def ConcatenateMaps(self):
@@ -275,11 +283,16 @@ class NewMap():
         for i in range(len(self.maplist)):
             pre_map = self.maplist[i-1]
             map = self.maplist[i]
-            timeoffset += pre_map.len if i!=0 else 0
-            timeoffset -= map.xfade if i!=0 else 0
+
+            log.debug(f'{map.songname}')
+
+            if i!=0:
+                timeoffset += pre_map.len
+                timeoffset += max(0, beat2msec(pre_map.silence, map.bpm))
+            timeoffset += max(0, beat2msec(-map.silence, map.bpm))
+            #timeoffset -= map.xfade if i!=0 else 0
+            map.timeoffset = timeoffset - round45(beat2msec(map.start, map.bpm))
             log.debug(f'timeoffset: {msec2timestr(timeoffset)}')
-            log.debug(f'start: {msec2timestr(beat2msec(map.start, map.bpm))}')
-            map.timeoffset = timeoffset - beat2msec(map.start, map.bpm)
             
             map.ConvertMap()
             
@@ -297,14 +310,21 @@ class NewMap():
         log.info('マップデータ処理完了')
 
     # マップデータ出力
-    def CreateMap(self):
+    def OutputMap(self):
         log.info('datファイル出力中...')
         if not os.path.exists(self.dir):
             os.mkdir(self.dir)
+
         im = pickle.load(open(COVERRESOURCE,'rb'))
         im.save(os.path.join(self.dir,COVERFILE))
+
         with open(os.path.join(self.dir,INFOFILE),'w') as f: 
             json.dump(self.info, f)
+
         with open(os.path.join(self.dir,MAPFILE),'w') as f:
             json.dump(self.map_data, f)
         log.info('datファイル出力完了！')
+
+        log.info('oggファイル出力中...')
+        self.sound.export(os.path.join(self.dir,"song.ogg"), format="ogg")
+        log.info('oggファイル出力完了！')

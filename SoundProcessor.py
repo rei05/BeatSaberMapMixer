@@ -16,7 +16,7 @@ class Song():
         self.fadein     = None # [beat]
         self.fadeout    = None # [beat]
         self.xfade      = None # [sec]
-        self.presilence = None # [sec]
+        self.silence    = None # [beat]
 
     def Trimming(self):
         start = round45(beat2msec(self.start, self.bpm))
@@ -25,14 +25,22 @@ class Song():
         log.debug(f'音声トリミング: {msec2timestr(start)}-{msec2timestr(end)}')
 
     def fade(self):
-        if self.fadein != 0:
-            fadein = round45(beat2msec(self.fadein, self.bpm))
-            self.sound = self.sound.fade_in(fadein)
-            log.debug(f'フェードイン: {fadein/1000}sec')
-        if self.fadeout != 0:
-            fadeout = round45(beat2msec(self.fadeout, self.bpm))
-            self.sound = self.sound.fade_out(fadeout)
-            log.debug(f'フェードアウト: {fadeout/1000}sec')
+        if (t_fadein := beat2msec(self.fadein - self.start, self.bpm)) > 0:
+            self.sound = self.sound.fade_in(round45(t_fadein))
+            log.debug(f'フェードイン: {round45(t_fadein)/1000}sec')
+        if (t_fadeout := beat2msec(self.end - self.fadeout, self.bpm)) > 0:
+            self.sound = self.sound.fade_out(round45(t_fadeout))
+            log.debug(f'フェードアウト: {round45(t_fadeout)/1000}sec')
+
+    def AddSilence(self):
+        if (t_silence := beat2msec(self.silence, self.bpm)) < 0:
+            silence = AudioSegment.silent(round45(-t_silence))
+            self.sound = silence.append(self.sound, crossfade=0)
+            log.debug(f'*start前の無音区間: {round45(t_silence)/1000}sec')
+        if (t_silence := beat2msec(self.silence, self.bpm)) > 0:
+            silence = AudioSegment.silent(round45(t_silence))
+            self.sound = self.sound.append(silence, crossfade=0)
+            log.debug(f'*end後の無音区間: {round45(t_silence)/1000}sec')
 
 
 # トリミング＆フェード処理
@@ -42,6 +50,7 @@ def EditSound(songlist):
         song.sound = song.org_sound
         song.Trimming()
         song.fade()
+        song.AddSilence()
     log.info('音声編集完了')
 
 # 音声結合
@@ -50,7 +59,8 @@ def ConcatenateSongs(songlist):
     sounds = [song.sound for song in songlist]
     sound = sounds[0]
     for i in range(1,len(songlist)):
-        sound = sound.append(sounds[i], songlist[i].xfade)
+        #sound = sound.append(sounds[i], songlist[i].xfade)
+        sound = sound.append(sounds[i], crossfade=0)
     log.info('音声結合完了')
     return sound
 
