@@ -30,12 +30,14 @@ class UI(QtWidgets.QMainWindow):
         self.maps = [None]*32
         self.songs = [None]*32
 
+        self.ui.BMOverwriteCheckAction.changed.connect(self.click_BMOverwriteCheck)
+        
         ToolTipDuration = 30000
         self.ui.startLabel.setToolTip('<b>*start</b><br>曲の開始位置をbeatで指定します。')
         self.ui.endLabel.setToolTip('<b>*end</b><br>曲の終了位置をbeatで指定します。')
-        self.ui.xfadeLabel.setToolTip('<b>*xfade</b><br>前の曲とのクロスフェードにかける時間長をbeat単位で指定します。')
-        self.ui.fadeinLabel.setToolTip('<b>*fadein</b><br>フェードインの終了位置をbeatで指定します。')
-        self.ui.fadeoutLabel.setToolTip('<b>*fadeout</b><br>フェードアウトの開始位置をbeatで指定します。')
+        self.ui.xfadeLabel.setToolTip('<b>*xfade</b><br>前の曲とのクロスフェードにかける時間長をbeatで指定します。')
+        self.ui.fadeinLabel.setToolTip('<b>*fadein</b><br>フェードインにかける時間をbeatで指定します。')
+        self.ui.fadeoutLabel.setToolTip('<b>*fadeout</b><br>フェードアウトにかける時間をbeatで指定します。')
         self.ui.silenceLabel.setToolTip('<b>*silence</b><br>*endの直後に挿入する無音区間の長さをbeatで指定します。負の数を指定した場合は*startの直前に挿入します。')
         self.ui.startLabel.setToolTipDuration(ToolTipDuration)
         self.ui.endLabel.setToolTipDuration(ToolTipDuration)
@@ -52,6 +54,7 @@ class UI(QtWidgets.QMainWindow):
                
         self.ui.setDefaultNJSButton.clicked.connect(self.setDefaultNJS)
         self.ui.setDefaultOffsetButton.clicked.connect(self.setDefaultOffset)
+        #self.ui.setDefaultBPMButton.clicked.connect(self.setDefaultBPM)
         
         self.ui.lineEdit.setText("Generated_Map")
         self.ui.outputButton.clicked.connect(self.click_outputButton)
@@ -76,15 +79,12 @@ class UI(QtWidgets.QMainWindow):
         song = Song(map.songfile, map.bpm)
         self.songs[self.iSlot] = song
         map.len = song.len
-        map.len_beat = msec2beat(map.len, map.bpm)
         map.CommandParse()
 
         # 表示系更新
         self.disconnect_parameter()
         self.clear_map_info()
         self.set_map_info()
-
-
 
     def set_map_info(self):
         log.info('マップ情報をセット')
@@ -100,11 +100,14 @@ class UI(QtWidgets.QMainWindow):
 
         self.ui.NJSSpinBox.setValue(map.njs)
         self.ui.OffsetSpinBox.setValue(map.offset)
+        #self.ui.BPMSpinBox.setValue(map.bpm2)
         self.ui.NJSSpinBox.setEnabled(True)
         self.ui.OffsetSpinBox.setEnabled(True)
+        #self.ui.BPMSpinBox.setEnabled(True)
 
         self.ui.setDefaultNJSButton.setEnabled(True)
         self.ui.setDefaultOffsetButton.setEnabled(True)
+        #self.ui.setDefaultBPMButton.setEnabled(True)
 
         self.ui.comboBox.addItems(list(map.levels.keys()))
         self.ui.comboBox.setCurrentText(map.level)
@@ -112,7 +115,6 @@ class UI(QtWidgets.QMainWindow):
 
         self.ui.startSpinBox.setValue(map.start)
         self.ui.endSpinBox.setValue(map.end)
-        self.ui.xfadeSpinBox.setValue(map.xfade)
         self.ui.fadeinSpinBox.setValue(map.fadein)
         self.ui.fadeoutSpinBox.setValue(map.fadeout)
         self.ui.silenceSpinBox.setValue(map.silence)
@@ -120,8 +122,11 @@ class UI(QtWidgets.QMainWindow):
         self.ui.endSpinBox.setEnabled(True)
         if self.iSlot != 0:
             self.ui.xfadeSpinBox.setEnabled(True)
+            self.ui.xfadeSpinBox.setValue(map.xfade)
         else:
             self.ui.xfadeSpinBox.setEnabled(False)
+            self.ui.xfadeSpinBox.setValue(0)
+            map.xfade = 0
         self.ui.fadeinSpinBox.setEnabled(True)
         self.ui.fadeoutSpinBox.setEnabled(True)
         self.ui.silenceSpinBox.setEnabled(True)
@@ -151,13 +156,14 @@ class UI(QtWidgets.QMainWindow):
         map.offset = selected_level['offset']
         map.start = selected_level['start']
         map.end = selected_level['end']
-        map.xfade = map.start
-        map.fadein = map.start
-        map.fadeout = map.end
+        map.xfade = xfade if (xfade := selected_level['xfade']-selected_level['start']) > 0 else 0 
+        map.fadein = fadein if (fadein := selected_level['fadein']-selected_level['start']) > 0 else 0 
+        map.fadeout = fadeout if (fadeout := selected_level['end']-selected_level['fadeout']) > 0 else 0 
         map.silence = selected_level['silence']
 
         self.ui.NJSSpinBox.setValue(map.njs)
         self.ui.OffsetSpinBox.setValue(map.offset)
+        #self.ui.BPMSpinBox.setValue(map.bpm)
         self.ui.JDLabel.setText('{:.2f}'.format(JumpDistance(map.bpm, map.njs, map.offset)))
         self.ui.startSpinBox.setValue(map.start)
         self.ui.endSpinBox.setValue(map.end)
@@ -173,9 +179,9 @@ class UI(QtWidgets.QMainWindow):
     def update_parameter(self):
         log.debug('update_parameter')
         map = self.maps[self.iSlot]
-        song = self.songs[self.iSlot]
         map.njs = self.ui.NJSSpinBox.value()
         map.offset = self.ui.OffsetSpinBox.value()
+        #map.bpm2 = self.ui.BPMSpinBox.value()
         self.ui.JDLabel.setText('{:.2f}'.format(JumpDistance(map.bpm, map.njs, map.offset)))
         map.start = self.ui.startSpinBox.value()
         map.end = self.ui.endSpinBox.value()
@@ -183,7 +189,7 @@ class UI(QtWidgets.QMainWindow):
         map.fadein = self.ui.fadeinSpinBox.value()
         map.fadeout = self.ui.fadeoutSpinBox.value()
         map.silence = self.ui.silenceSpinBox.value()
-        log.debug(f'NJS:{map.njs} OFFSET:{map.offset}')
+        log.debug(f'BPM:{map.bpm2} NJS:{map.njs} OFFSET:{map.offset}')
         log.debug(f'*start:{map.start} *end:{map.end}')
         log.debug(f'*fadein:{map.fadein} *fadeout:{map.fadeout}')
         log.debug(f'*xfade:{map.xfade} *silence:{map.fadeout}')
@@ -202,12 +208,20 @@ class UI(QtWidgets.QMainWindow):
         map.offset = map.levels[level]['offset']
         self.ui.OffsetSpinBox.setValue(map.offset)
 
+    '''
+    def setDefaultBPM(self):
+        log.info('BPMを既定値に戻す')
+        map = self.maps[self.iSlot]
+        self.ui.BPMSpinBox.setValue(map.bpm)
+    '''
+
     # comboBox/SpinBoxの内容変更の検知を有効にする
     def connect_parameter(self):
         log.debug('connect_parameter')
         self.ui.comboBox.currentTextChanged.connect(self.update_level)
         self.ui.NJSSpinBox.textChanged.connect(self.update_parameter)
         self.ui.OffsetSpinBox.textChanged.connect(self.update_parameter)
+        #self.ui.BPMSpinBox.textChanged.connect(self.update_parameter)
         self.ui.startSpinBox.textChanged.connect(self.update_parameter)
         self.ui.endSpinBox.textChanged.connect(self.update_parameter)
         self.ui.xfadeSpinBox.textChanged.connect(self.update_parameter)
@@ -222,6 +236,7 @@ class UI(QtWidgets.QMainWindow):
         self.ui.comboBox.currentTextChanged.disconnect()
         self.ui.NJSSpinBox.textChanged.disconnect()
         self.ui.OffsetSpinBox.textChanged.disconnect()
+        #self.ui.BPMSpinBox.textChanged.disconnect()
         self.ui.startSpinBox.textChanged.disconnect()
         self.ui.endSpinBox.textChanged.disconnect()
         self.ui.xfadeSpinBox.textChanged.disconnect()
@@ -238,9 +253,7 @@ class UI(QtWidgets.QMainWindow):
             self.ui.backButton.setEnabled(True)
         
         # カレントスロットが空(最後尾)orスロット数MAXなら進めない
-        # len(self.maps)-2：
-        # ConcatenateMaps()内のループでmaps配列末尾への参照が発生するため
-        if (self.maps[self.iSlot] is None)|(self.iSlot == len(self.maps)-2):
+        if (self.maps[self.iSlot] is None)|(self.iSlot == len(self.maps)-1):
             self.ui.nextButton.setText('╋')
             self.ui.nextButton.setEnabled(False)
         else:
@@ -273,11 +286,14 @@ class UI(QtWidgets.QMainWindow):
 
         self.ui.NJSSpinBox.clear()
         self.ui.OffsetSpinBox.clear()
+        #self.ui.BPMSpinBox.clear()
         self.ui.NJSSpinBox.setEnabled(False)
         self.ui.OffsetSpinBox.setEnabled(False)
+        #self.ui.BPMSpinBox.setEnabled(False)
 
         self.ui.setDefaultNJSButton.setEnabled(False)
         self.ui.setDefaultOffsetButton.setEnabled(False)
+        #self.ui.setDefaultBPMButton.setEnabled(False)
         self.update_slot()
 
         self.ui.startSpinBox.clear()
@@ -382,6 +398,11 @@ class UI(QtWidgets.QMainWindow):
             self.update_slot()
             log.info(f'スロット#{self.iSlot}へ戻る ')
 
+    def click_BMOverwriteCheck(self):
+        if self.ui.BMOverwriteCheckAction.isChecked():
+            if not CheckBMOverwrite():
+                self.ui.BMOverwriteCheckAction.setChecked(False)
+
     # 出力ボタン
     def click_outputButton(self):
         save_name = self.ui.lineEdit.text()
@@ -405,21 +426,12 @@ class UI(QtWidgets.QMainWindow):
 
     # 不正なコマンド設定を確認
     def CommandCheck(self, map):
-        for com in ['start','end','xfade','fadein','fadeout']:
-            if eval('map.'+com) < map.start:
-                log.error(f'{map.songname}')
-                log.error(f'*{com} は *start より後ろの位置を指定してください！')
-                return False
-            if eval('map.'+com) > map.end:
-                log.error(f'{map.songname}')
-                log.error(f'*{com} は *end より前の位置を指定してください！')
-                return False
-        if map.end == map.start:
+        if map.end < map.start:
             log.error(f'{map.songname}')
-            log.error('*end は *start より後ろの位置を指定してください！')
+            log.error(f'*end は *start より後ろの位置を指定してください！')
             return False
         return True
-
+   
     # マップ生成＆音声結合
     def output_map(self,output_path):
         # 選択されたレベルのコマンド情報を取得
@@ -436,30 +448,35 @@ class UI(QtWidgets.QMainWindow):
                 QMessageBox.warning(None, "コマンドエラー", "コマンドの値が不正です！\nERRORログを確認してください！", QMessageBox.Ok)
                 return 0
 
-            map.len = beat2msec(map.end - map.start, map.bpm)
-
-            #if i < n_map-1:
-            #    next_map = map_list[i+1]
-            #    b_next_xfade = next_map.levels[next_map.level]['xfade'] - next_map.levels[next_map.level]['start']
-            #    map.end -= (b_next_xfade/2)*(next_map.bpm/map.bpm)
-
-            # mapのコマンド情報をsongへ渡す
+             # mapのコマンド情報をsongへ渡す
             for com in COMANDS:
                 exec('song.'+com+'=map.'+com)
 
             for com in COMANDS:
                 log.debug(f'*{com}:{eval("map."+com)}')
 
-        # マップ処理
-        newmap = NewMap(output_path, map_list)
-        newmap.ConcatenateMaps()
+            if self.ui.BMOverwriteCheckAction.isChecked():
+                map.CommandOverwrite()
+
 
         # 音声処理
+        for i in range(n_map):
+            song_list[i].speed = map_list[i].bpm2/map_list[i].bpm
         EditSound(song_list)
-        new_sound = ConcatenateSongs(song_list)
-        newmap.sound = new_sound
+        newSound = ConcatenateSongs(song_list)
 
-        newmap.OutputMap()
+        # マップ処理
+        for i in range(n_map):
+            map_list[i].speed = song_list[i].speed
+            map_list[i].len = song_list[i].len
+            map_list[i].postXfade = song_list[i].postXfade
+        newMap = NewMap(output_path, map_list)
+        newMap.CalcTimeOffset()
+        newMap.ConcatenateMaps()
+
+        newMap.sound = newSound
+
+        newMap.OutputMap()
         log.info('マップ出力が完了しました！')
 
         QMessageBox.information(None, "出力", "出力完了！", QMessageBox.Ok)

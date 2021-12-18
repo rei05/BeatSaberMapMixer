@@ -8,20 +8,20 @@ class Map():
         log.info('マップ読み込み中...')
         self.map_dir = map_dir
         self.len = 0 # [msec]
-        self.len_beat = 0 # [beat]
         self.level = None
         self.njs = None
         self.org_offset = None
         self.offset = None
-        self.timeoffset = 0
-        self.n_notes = 0 # for debug
-        self.noodle_data = None
+        self.timeOffset = None # [msec]
+        self.mapData    = None
+        self.speed      = 1.0 # scale
         self.start      = None # [beat]
         self.end        = None # [beat]
         self.fadein     = None # [beat]
         self.fadeout    = None # [beat]
-        self.xfade      = None # [sec]
+        self.xfade      = None # [beat]
         self.silence    = None # [beat]
+        self.postXfade  = 0    # [beat]
         self.info_data = self.ReadDat('info.dat')
         if self.info_data:
             if self.ReadInfo():
@@ -55,6 +55,7 @@ class Map():
         self.songsubname = self.info_data['_songSubName']
         self.levelauthor = self.info_data['_levelAuthorName']
         self.bpm = self.info_data['_beatsPerMinute']
+        self.bpm2 = self.bpm
         self.songauthor = self.info_data['_songAuthorName']
         self.songfile = os.path.join(self.map_dir,self.info_data['_songFilename'])
         self.songfilename = self.info_data['_songFilename']
@@ -67,8 +68,8 @@ class Map():
                 filename = level['_beatmapFilename']
                 njs = level['_noteJumpMovementSpeed']
                 offset = level['_noteJumpStartBeatOffset']
-                if map_data := self.ReadDat(filename):
-                    self.levels[filename] = {'njs':njs, 'offset':offset, 'dat':map_data}
+                if mapData := self.ReadDat(filename):
+                    self.levels[filename] = {'njs':njs, 'offset':offset, 'dat':mapData}
 
         if len(self.levels) == 0:
             log.error('読み込み可能なレベルがありません！')
@@ -88,28 +89,26 @@ class Map():
         log.info('ブックマークコマンド検出中...')
 
         for levelname in self.levels.keys():
-            self.levels[levelname]['start'] = 0
-            self.levels[levelname]['end'] = self.len_beat
-            self.levels[levelname]['xfade'] = 0
-            self.levels[levelname]['fadein'] = 0
-            self.levels[levelname]['fadeout'] = self.len_beat
-            self.levels[levelname]['silence'] = 0
-
-        for levelname in self.levels.keys():
 
             log.info(f'{levelname}')
             level = self.levels[levelname]
-            map_data = level['dat']
+            mapData = level['dat']
 
-            if '_bookmarks' not in map_data['_customData'].keys():
+            level['start']   = 0
+            level['end']     = msec2beat(self.len, self.bpm)
+            level['fadein']  = 0
+            level['fadeout'] = msec2beat(self.len, self.bpm)
+            level['xfade']   = 0
+            level['silence'] = 0
+
+            if '_bookmarks' not in mapData['_customData'].keys():
                 continue
-            if len(map_data['_customData']['_bookmarks'])==0:
+            if len(mapData['_customData']['_bookmarks'])==0:
                 continue
 
-            for com in COMANDS:
-                exec(com + '= []')
-
-            for bookmark in map_data['_customData']['_bookmarks']:
+            start, end, fadein, fadeout, xfade, silence = [], [], [], [], [], []
+            
+            for bookmark in mapData['_customData']['_bookmarks']:
                 time = bookmark['_time']
                 name = bookmark['_name']
                 if len(name)==0:
@@ -124,13 +123,17 @@ class Map():
                     if not com_detected:
                         log.error(f'未定義のコマンド {name} @{time}')
 
+            # ブックマークコマンド無しの場合は初期値をセット
             # 同じコマンドが複数ある場合は最後(timeが最大)のものを適用
-            for com in COMANDS:
-                if len(eval(com)) > 0:
-                    level[com] = max(eval(com))
+            level['start']   = max(start)   if len(start)   > 0 else 0
+            level['end']     = max(end)     if len(end)     > 0 else msec2beat(self.len, self.bpm)
+            level['fadein']  = max(fadein)  if len(fadein)  > 0 else level['start']
+            level['fadeout'] = max(fadeout) if len(fadeout) > 0 else level['end']
+            level['xfade']   = max(xfade)   if len(xfade)   > 0 else level['start']
+            level['silence'] = max(silence) if len(silence) > 0 else 0
 
             # silenceコマンドのパース
-            for bookmark in map_data['_customData']['_bookmarks']:
+            for bookmark in mapData['_customData']['_bookmarks']:
                 time = bookmark['_time']
                 name = bookmark['_name']
                 if time==level['silence']:
@@ -141,90 +144,109 @@ class Map():
                         level['silence'] = 0
 
         # UI表示の初期値をセット
-        for com in COMANDS:
-            exec('self.' + com + ' = self.levels[self.level]["' + com + '"]')
-            
+        level = self.levels[self.level]
+        self.start = level['start']
+        self.end = level['end']
+        self.xfade = xfade if (xfade := level['xfade']-level['start']) > 0 else 0 
+        self.fadein = fadein if (fadein := level['fadein']-level['start']) > 0 else 0 
+        self.fadeout = fadeout if (fadeout := level['end']-level['fadeout']) > 0 else 0 
+        self.silence = level['silence']
+
         log.info('ブックマークコマンド検出完了')
                 
-                
 
-    # Noodle変換
-    def ConvertMap(self):
-        map_data = copy.deepcopy(self.levels[self.level]['dat'])
-
-        # BPMChanges
-        #BPMChangetime = self.ConvertTiming(self.start + msec2beat(self.xfade/2, self.bpm))
-        BPMChangetime = self.ConvertTiming(self.start - max(0, -self.silence))
+    # BPMChanges
+    def ConvertBPMChanges(self):
+        BPMChangetime = self.ConvertTiming(self.start - max(0, -self.silence) + self.xfade/2)
         BPMChanges = [{"_BPM":self.bpm,"_time":BPMChangetime,"_beatsPerBar":4,"_metronomeOffset":4}]
-        if '_BPMChanges' in map_data['_customData'].keys():
-            for BPMChange in map_data['_customData']['_BPMChanges']:
+        if '_BPMChanges' in self.mapData['_customData'].keys():
+            for BPMChange in self.mapData['_customData']['_BPMChanges']:
                 if BPMChange['_time'] == 0:
                     BPMChanges[0] = BPMChange
                 if not self.IsDelete(BPMChange['_time']):
                     BPMChange['_time'] = self.ConvertTiming(BPMChange['_time'])
                     BPMChanges.append(BPMChange)
-        map_data['_customData']['_BPMChanges'] = BPMChanges
+        self.mapData['_customData']['_BPMChanges'] = BPMChanges
 
-        # bookmarks
-        #bookmarktime = self.ConvertTiming(self.start + msec2beat(self.xfade/2, self.bpm))
-        bookmarktime = self.ConvertTiming(self.start - max(0, -self.silence))
-        map_data['_customData']['_bookmarks'] = [{"_time":bookmarktime,"_name":self.songname}]
-        
-        # pointDefinitions
-        if '_pointDefinitions' not in map_data['_customData'].keys():
-            map_data['_customData']['_pointDefinitions'] = []
+    # Bookmarks
+    def ConvertBookmarks(self):
+        bookmarktime = self.ConvertTiming(self.start - max(0, -self.silence) + self.xfade/2)
+        if bookmarktime == 0:
+            bookmarktime += 1e-5
+        self.mapData['_customData']['_bookmarks'] = [{"_time":bookmarktime,"_name":self.songname}]
 
-        # customEvents
+    # pointDefinitions
+    def ConvertPointDefinitions(self):
+        if '_pointDefinitions' not in self.mapData['_customData'].keys():
+            self.mapData['_customData']['_pointDefinitions'] = []
+
+    # customEvents
+    def ConvertCustomEvents(self):
         customEvents = []
-        if '_customEvents' in map_data['_customData'].keys():
-            for customEvent in map_data['_customData']['_customEvents']:
+        if '_customEvents' in self.mapData['_customData'].keys():
+            for customEvent in self.mapData['_customData']['_customEvents']:
                 if not self.IsDelete(customEvent['_time']):
                     customEvent['_time'] = self.ConvertTiming(customEvent['_time'])
                     if '_duration' in customEvent['_data'].keys():
-                        customEvent['_data']['_duration'] = self.ConvertTiming(customEvent['_data']['_duration'],0)
+                        customEvent['_data']['_duration'] = self.ConvertTiming(customEvent['_data']['_duration'],1)
                     customEvents.append(customEvent)
-        map_data['_customData']['_customEvents'] = customEvents
+        self.mapData['_customData']['_customEvents'] = customEvents
 
-        # events
+    # events
+    def ConvertEvents(self):
         events = []
-        for event in map_data['_events']:
+        for event in self.mapData['_events']:
             if not self.IsDelete(event['_time']):
                 event['_time'] = self.ConvertTiming(event['_time'])
                 events.append(event)
-        map_data['_events'] = events
+        self.mapData['_events'] = events
 
-        # notes
+    # notes
+    def ConvertNotes(self):
         notes = []
-        for note in map_data['_notes']:
+        for note in self.mapData['_notes']:
             if not self.IsDelete(note['_time']):
                 note['_time'] = self.ConvertTiming(note['_time'])
                 note = self.SetObjectsMove(note)
                 notes.append(note)
-        map_data['_notes'] = notes
+        self.mapData['_notes'] = notes
 
-        # obstacles
+    # obstacles
+    def ConvertObstacles(self):
         obstacles = []
-        for obst in map_data['_obstacles']:
+        for obst in self.mapData['_obstacles']:
             if not self.IsDelete(obst['_time']):
                 obst['_time'] = self.ConvertTiming(obst['_time'])
-                obst['_duration'] = self.ConvertTiming(obst['_duration'],0)
+                obst['_duration'] = self.ConvertTiming(obst['_duration'],1)
                 obst = self.SetObjectsMove(obst)
                 obstacles.append(obst)
-        map_data['_obstacles'] = obstacles
+        self.mapData['_obstacles'] = obstacles
 
-        self.noodle_data = map_data
+    # Noodle変換
+    def ConvertMap(self):
+        self.mapData = copy.deepcopy(self.levels[self.level]['dat'])
+        self.ConvertBPMChanges()
+        self.ConvertBookmarks()
+        self.ConvertPointDefinitions()
+        self.ConvertCustomEvents()
+        self.ConvertEvents()
+        self.ConvertNotes()
+        self.ConvertObstacles()
 
     # トリミングによるオブジェクトの削除判定
     def IsDelete(self,t):
-        #return (t < self.start + msec2beat(self.xfade*(3/4), self.bpm)) | (t >= self.end)
-        return (t < self.start) | (t >= self.end)
+        return (t < self.start + self.xfade/2) | (t >= self.end - self.postXfade/2)
 
     # タイミング変換
-    def ConvertTiming(self,b,timeoffset=None):
-        dt = self.timeoffset if timeoffset is None else timeoffset
-        time = b*(DefaultBPM/self.bpm) + msec2beat(dt, DefaultBPM)
-        time = round(time,6)
-        assert time >= 0
+    def ConvertTiming(self,beat, duration_mode=0):
+        preMapOffset = 0 if duration_mode else msec2beat(self.timeOffset, DefaultBPM)
+        preSilence = max(0, -self.silence)
+        time = (beat*(DefaultBPM/self.bpm) + preSilence)/self.speed + preMapOffset
+        time = round(time,4)
+        try:
+            assert time >= 0
+        except(AssertionError):
+            log.debug(f'[AssertionError] ConvertTiming time={time}')
         return time
 
     # NJS,offset変換
@@ -256,22 +278,50 @@ class Map():
                                    '_noteJumpStartBeatOffset':general_new_offset}
         return object
 
+    def CommandOverwrite(self):
+        bookmarks = []
+        bookmarks.append({'_time':self.start, '_name':'*stat'})
+        bookmarks.append({'_time':self.end, '_name':'*end'})
+        if self.fadein != 0:
+            bookmarks.append({'_time':self.start+self.fadein, '_name':'*fadein'})
+        if self.fadeout != 0:
+            bookmarks.append({'_time':self.end-self.fadeout, '_name':'*fadeout'})
+        if self.xfade != 0:
+            bookmarks.append({'_time':self.start+self.xfade, '_name':'*xfade'})
+        if self.silence !=0:
+            bookmarks.append({'_time':self.start+0.25, '_name':'*silence'+str(self.silence)})
+        mapData = self.ReadDat(self.level)
+        mapData['_customData']['_bookmarks'] = bookmarks
+        with open(os.path.join(self.map_dir,self.level),'w') as f:
+            json.dump(mapData,f,indent=4)
 
 class NewMap():
-    def __init__(self, dir, maplist):
+    def __init__(self, dir, maps):
         self.dir = dir
-        self.maplist = maplist
+        self.maps = maps
         self.map_data = None
         self.sound = None
         global DefaultBPM
         # NJSがBPMの15%以上だとオフセット変更できない
         # -> 結合するマップの中で最大のNJSが全体BPMの15%以下の値になるようにする
-        DefaultBPM = max(max([map.njs for map in maplist])/0.15, max([map.bpm for map in maplist]))
+        DefaultBPM = max(max([map.njs for map in maps])/0.15, max([map.bpm for map in maps]))
         log.debug(f'DefaultBPM: {DefaultBPM}')
         with open(INFORESOURCE,'r') as f:
             self.info = json.load(f)
         self.info['_beatsPerMinute'] = DefaultBPM
         self.info['_difficultyBeatmapSets'][0]['_difficultyBeatmaps'][0]['_noteJumpMovementSpeed'] = DefaultNJS
+
+    # 前の譜面までの合計時間[msec]
+    def CalcTimeOffset(self):
+        timeOffset = 0
+        self.maps[0].timeOffset = timeOffset - beat2msec(self.maps[0].start, self.maps[0].bpm)
+        log.debug(f'{self.maps[0].songname}')
+        log.debug(f'timeOffset: {msec2timestr(timeOffset)}')
+        for i in range(1,len(self.maps)):
+            log.debug(f'{self.maps[i].songname}')
+            timeOffset += self.maps[i-1].len
+            self.maps[i].timeOffset = timeOffset - beat2msec(self.maps[i].start, self.maps[i].bpm)
+            log.debug(f'timeOffset: {msec2timestr(timeOffset)}')
 
     # マップ結合
     def ConcatenateMaps(self):
@@ -279,33 +329,18 @@ class NewMap():
         with open(MAPRESOURCE,'r') as f:
             newmap_data = json.load(f)
         
-        timeoffset = 0 # 前の譜面までの合計時間[msec]
-        for i in range(len(self.maplist)):
-            pre_map = self.maplist[i-1]
-            map = self.maplist[i]
-
-            log.debug(f'{map.songname}')
-
-            if i!=0:
-                timeoffset += pre_map.len
-                timeoffset += max(0, beat2msec(pre_map.silence, map.bpm))
-            timeoffset += max(0, beat2msec(-map.silence, map.bpm))
-            #timeoffset -= map.xfade if i!=0 else 0
-            map.timeoffset = timeoffset - round45(beat2msec(map.start, map.bpm))
-            log.debug(f'timeoffset: {msec2timestr(timeoffset)}')
+        for i in range(len(self.maps)):
             
-            map.ConvertMap()
-            
-            map_data = map.noodle_data
-            map.n_notes = len(map_data["_notes"])
+            self.maps[i].ConvertMap()
+            mapData = self.maps[i].mapData
 
-            newmap_data['_customData']['_BPMChanges'].extend(map_data['_customData']['_BPMChanges'])
-            newmap_data['_customData']['_bookmarks'].extend(map_data['_customData']['_bookmarks'])
-            newmap_data['_customData']['_pointDefinitions'].extend(map_data['_customData']['_pointDefinitions'])
-            newmap_data['_customData']['_customEvents'].extend(map_data['_customData']['_customEvents'])
-            newmap_data['_events'].extend(map_data['_events'])
-            newmap_data['_notes'].extend(map_data['_notes'])
-            newmap_data['_obstacles'].extend(map_data['_obstacles'])
+            newmap_data['_customData']['_BPMChanges'].extend(mapData['_customData']['_BPMChanges'])
+            newmap_data['_customData']['_bookmarks'].extend(mapData['_customData']['_bookmarks'])
+            newmap_data['_customData']['_pointDefinitions'].extend(mapData['_customData']['_pointDefinitions'])
+            newmap_data['_customData']['_customEvents'].extend(mapData['_customData']['_customEvents'])
+            newmap_data['_events'].extend(mapData['_events'])
+            newmap_data['_notes'].extend(mapData['_notes'])
+            newmap_data['_obstacles'].extend(mapData['_obstacles'])
         self.map_data = newmap_data
         log.info('マップデータ処理完了')
 

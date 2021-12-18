@@ -98,11 +98,28 @@ def CheckOverwrite(path):
         msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msgBox.setDefaultButton(QMessageBox.No)
         ret = msgBox.exec()
-        if ret == QMessageBox.No:
+        if ret == QMessageBox.Yes:
+            return True
+        else:
             return False
     else:
         os.mkdir(path)
-    return True
+        return True
+
+def CheckBMOverwrite():
+    msgBox = QMessageBox()
+    msgBox.setWindowTitle('確認')
+    msgBox.setText('「出力時、元の譜面ファイルにブックマークコマンド設定を反映する」\n'+
+                   'に本当にチェックを付けますか？')
+    msgBox.setInformativeText('譜面ファイルへの上書きを行うため、予期せぬ誤動作によりファイルが破損する可能性があります。\n'+
+                            'また、既存のブックマークは全てリセットされます。')
+    msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+    msgBox.setDefaultButton(QMessageBox.No)
+    ret = msgBox.exec()
+    if ret == QMessageBox.Yes:
+        return True
+    else:
+        return False
 
 def msec2timestr(msec):
     td = datetime.timedelta(milliseconds=msec)
