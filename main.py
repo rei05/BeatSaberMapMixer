@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
 
-##-MEMO-####################################################
-# exe化コマンド
-#   pyinstaller main.py --onefile --clean
-#   ※[--noconsole]オプション付けるとffmpegのコンソール起動と
-#     競合して動作しなくなる。
-# ui → py変換コマンド
-#   uic.exe main.ui -o ui.py -g python
-############################################################
-
 import os,sys,textwrap,time
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QMessageBox

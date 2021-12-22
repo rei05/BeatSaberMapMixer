@@ -10,11 +10,6 @@ INT32MAX = 2**31-1
 
 DEBUG_MODE = False
 
-EGNPATH = os.path.join(CWDIR, 'Engine')
-TMPTEX = os.path.join(CWDIR,'tmp/tmp')
-LOGDIR = os.path.join(CWDIR,'Logs')
-LOGPATH = None
-
 INFOFILE = 'info.dat'
 MAPFILE = 'EasyStandard.dat'
 COVERFILE = 'cover.png'
@@ -23,6 +18,10 @@ RESOURCE = os.path.join(CWDIR,'resource')
 INFORESOURCE = os.path.join(RESOURCE,INFOFILE)
 MAPRESOURCE = os.path.join(RESOURCE,MAPFILE)
 COVERRESOURCE = os.path.join(RESOURCE,'cover')
+TMPTEX = os.path.join(RESOURCE,'tmp')
+EGNPATH = os.path.join(CWDIR, 'Engine')
+LOGDIR = os.path.join(CWDIR,'Logs')
+LOGPATH = None
 
 COMANDS = ['start','end','xfade','fadein','fadeout','silence']
 

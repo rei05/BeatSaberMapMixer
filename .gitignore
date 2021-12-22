@@ -7,6 +7,8 @@ SoundPlayer.py
 cover.png
 main.spec
 main.exe
+VersionInfo.txt
+exe化メモ.txt
 Logs/
 tmp/
 dist/

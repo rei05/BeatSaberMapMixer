@@ -37,23 +37,20 @@ class Song():
     def AddSilence(self):
         if (silenceDuration := beat2msec(self.silence, self.bpm)) < 0:
             silence = AudioSegment.silent(round45(-silenceDuration))
-            self.sound = silence.append(self.sound, crossfade=0)
+            self.sound = silence + self.sound
             log.debug(f'*start前の無音区間: {round45(silenceDuration)/1000}sec')
         if (silenceDuration := beat2msec(self.silence, self.bpm)) > 0:
             silence = AudioSegment.silent(round45(silenceDuration))
-            self.sound = self.sound.append(silence, crossfade=0)
+            self.sound = self.sound + silence
             log.debug(f'*end後の無音区間: {round45(silenceDuration)/1000}sec')
-        self.len = len(self.sound)
 
     # 保留
     # pydubは速くはできるけど遅くできないっぽい？
     def ChangeSpeed(self):
         if self.speed != 1:
             destination_speed = self.speed
-            print(self.speed)
             self.sound = self.sound.speedup(playback_speed=self.speed, crossfade=0)
             self.speed = self.len/len(self.sound)
-            #print(self.len,len(self.sound))
             log.debug(f'速度倍率: 設定 {destination_speed}  実績 {self.speed}')
 
 
@@ -63,33 +60,33 @@ def EditSound(songs):
     for song in songs:
         song.sound = song.org_sound
         song.Trimming()
-        song.fade()
         song.AddSilence()
+        song.fade()
         #song.ChangeSpeed()
+        song.len = len(song.sound)
     log.info('音声編集完了')
 
 # クロスフェード
-def Xfade(preSong,postSong):
+def Xfade(sound,preSong,postSong):
     xfadeBeat = postSong.xfade
     xfadeTime1 = beat2msec(xfadeBeat, preSong.bpm)
     xfadeTime2 = beat2msec(xfadeBeat, postSong.bpm)
     if xfadeTime1 < xfadeTime2:
         silence = AudioSegment.silent(round45(xfadeTime2-xfadeTime1))
-        preSong.sound = preSong.sound.append(silence, crossfade=0)
+        sound = sound + silence
     elif xfadeTime1 > xfadeTime2:
-        end = beat2msec(preSong.end, preSong.bpm)
-        newEnd = round45(end-(xfadeTime1-xfadeTime2))
-        preSong.sound = preSong.sound[:newEnd]
+        newEnd = len(sound)-round45(xfadeTime1-xfadeTime2)
+        sound = sound[:newEnd]
     preSong.len -= xfadeTime1
     preSong.postXfade = msec2beat(xfadeTime2, preSong.bpm)
-    return xfadeTime2
+    return sound, round45(xfadeTime2)
 
 # 音声結合
 def ConcatenateSongs(songs):
     log.info('音声結合中...')
     sound = songs[0].sound
     for i in range(1,len(songs)):
-        xfadeTime = Xfade(songs[i-1],songs[i])
+        sound, xfadeTime = Xfade(sound, songs[i-1],songs[i])
         sound = sound.append(songs[i].sound, crossfade=xfadeTime)
     log.info('音声結合完了')
     return sound

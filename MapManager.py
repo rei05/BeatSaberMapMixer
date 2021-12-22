@@ -198,6 +198,9 @@ class Map():
         for event in self.mapData['_events']:
             if not self.IsDelete(event['_time']):
                 event['_time'] = self.ConvertTiming(event['_time'])
+                if '_customData' in event.keys():
+                    if '_lightGradient' in event['_customData'].keys():
+                        event['_customData']['_lightGradient']['_duration'] = self.ConvertTiming(event['_customData']['_lightGradient']['_duration'],1)
                 events.append(event)
         self.mapData['_events'] = events
 
@@ -220,7 +223,7 @@ class Map():
                 obst['_duration'] = self.ConvertTiming(obst['_duration'],1)
                 obst = self.SetObjectsMove(obst)
                 obstacles.append(obst)
-        self.mapData['_obstacles'] = obstacles
+        self.mapData['_obstacles'] = obstacles 
 
     # Noodle変換
     def ConvertMap(self):
@@ -241,13 +244,13 @@ class Map():
     def ConvertTiming(self,beat, duration_mode=0):
         preMapOffset = 0 if duration_mode else msec2beat(self.timeOffset, DefaultBPM)
         preSilence = max(0, -self.silence)
-        time = (beat*(DefaultBPM/self.bpm) + preSilence)/self.speed + preMapOffset
-        time = round(time,4)
+        newBeat = (beat*(DefaultBPM/self.bpm) + preSilence)/self.speed + preMapOffset
+        newBeat = round(newBeat,4)
         try:
-            assert time >= 0
+            assert newBeat >= 0
         except(AssertionError):
-            log.debug(f'[AssertionError] ConvertTiming time={time}')
-        return time
+            log.debug(f'[AssertionError] ConvertTiming newBeat={newBeat}')
+        return newBeat
 
     # NJS,offset変換
     def SetObjectsMove(self,object):
@@ -280,7 +283,7 @@ class Map():
 
     def CommandOverwrite(self):
         bookmarks = []
-        bookmarks.append({'_time':self.start, '_name':'*stat'})
+        bookmarks.append({'_time':self.start, '_name':'*start'})
         bookmarks.append({'_time':self.end, '_name':'*end'})
         if self.fadein != 0:
             bookmarks.append({'_time':self.start+self.fadein, '_name':'*fadein'})
@@ -338,6 +341,8 @@ class NewMap():
             newmap_data['_customData']['_bookmarks'].extend(mapData['_customData']['_bookmarks'])
             newmap_data['_customData']['_pointDefinitions'].extend(mapData['_customData']['_pointDefinitions'])
             newmap_data['_customData']['_customEvents'].extend(mapData['_customData']['_customEvents'])
+            if '_environment' in mapData['_customData'].keys():
+                newmap_data['_customData']['_environment'].extend(mapData['_customData']['_environment'])
             newmap_data['_events'].extend(mapData['_events'])
             newmap_data['_notes'].extend(mapData['_notes'])
             newmap_data['_obstacles'].extend(mapData['_obstacles'])
