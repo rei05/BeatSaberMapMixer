@@ -16,44 +16,45 @@ class UI(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowTitle('BeatSaberMapMixer')
+        self.ui.lineEdit.setText("Generated_Map")
+
+        self.SetCommandLabel()
+        self.SetButtonAction()
+
         self.iSlot = 0 #スロット番号(表示上は1始まり)
         self.nSlot = 1 #スロット数
         self.maps = [None]*32
         self.songs = [None]*32
-
-        self.ui.BMOverwriteCheckAction.changed.connect(self.click_BMOverwriteCheck)
         
-        ToolTipDuration = 30000
-        self.ui.startLabel.setToolTip('<b>*start</b><br>曲の開始位置をbeatで指定します。')
-        self.ui.endLabel.setToolTip('<b>*end</b><br>曲の終了位置をbeatで指定します。')
-        self.ui.xfadeLabel.setToolTip('<b>*xfade</b><br>前の曲とのクロスフェードにかける時間長をbeatで指定します。')
-        self.ui.fadeinLabel.setToolTip('<b>*fadein</b><br>フェードインにかける時間をbeatで指定します。')
-        self.ui.fadeoutLabel.setToolTip('<b>*fadeout</b><br>フェードアウトにかける時間をbeatで指定します。')
-        self.ui.silenceLabel.setToolTip('<b>*silence</b><br>*endの直後に挿入する無音区間の長さをbeatで指定します。負の数を指定した場合は*startの直前に挿入します。')
-        self.ui.startLabel.setToolTipDuration(ToolTipDuration)
-        self.ui.endLabel.setToolTipDuration(ToolTipDuration)
-        self.ui.xfadeLabel.setToolTipDuration(ToolTipDuration)
-        self.ui.fadeinLabel.setToolTipDuration(ToolTipDuration)
-        self.ui.fadeoutLabel.setToolTipDuration(ToolTipDuration)
-        self.ui.silenceLabel.setToolTipDuration(ToolTipDuration)
-
-        self.ui.addButton.clicked.connect(self.click_addButton)
-        self.ui.deleteButton.clicked.connect(self.click_deleteButton)
-        
-        self.ui.nextButton.clicked.connect(self.click_nextButton)
-        self.ui.backButton.clicked.connect(self.click_backButton)
-               
-        self.ui.setDefaultNJSButton.clicked.connect(self.setDefaultNJS)
-        self.ui.setDefaultOffsetButton.clicked.connect(self.setDefaultOffset)
-        #self.ui.setDefaultBPMButton.clicked.connect(self.setDefaultBPM)
-        
-        self.ui.lineEdit.setText("Generated_Map")
-        self.ui.outputButton.clicked.connect(self.click_outputButton)
-
         self.connect_parameter()
         self.clear_map_info()
 
-    
+    def SetCommandLabel(self):
+        ToolTipDuration = 30000
+        self.ui.startLabel.setToolTip('<b>*start</b><br>曲の開始位置をbeatで指定します。')
+        self.ui.endLabel.setToolTip('<b>*end</b><br>曲の終了位置をbeatで指定します。')
+        self.ui.passtoLabel.setToolTip('<b>*passto</b><br>次の譜面への接続位置をbeatで指定します。')
+        self.ui.passfromLabel.setToolTip('<b>*passfrom</b><br>前の譜面からの接続位置をbeatで指定します。')
+        self.ui.fadeinLabel.setToolTip('<b>*fadein</b><br>フェードインにかける時間をbeatで指定します。')
+        self.ui.fadeoutLabel.setToolTip('<b>*fadeout</b><br>フェードアウトにかける時間をbeatで指定します。')
+        self.ui.startLabel.setToolTipDuration(ToolTipDuration)
+        self.ui.endLabel.setToolTipDuration(ToolTipDuration)
+        self.ui.passtoLabel.setToolTipDuration(ToolTipDuration)
+        self.ui.passfromLabel.setToolTipDuration(ToolTipDuration)
+        self.ui.fadeinLabel.setToolTipDuration(ToolTipDuration)
+        self.ui.fadeoutLabel.setToolTipDuration(ToolTipDuration)
+
+    def SetButtonAction(self):
+        self.ui.addButton.clicked.connect(self.click_addButton)
+        self.ui.deleteButton.clicked.connect(self.click_deleteButton)
+        self.ui.nextButton.clicked.connect(self.click_nextButton)
+        self.ui.backButton.clicked.connect(self.click_backButton)
+        self.ui.setDefaultNJSButton.clicked.connect(self.setDefaultNJS)
+        self.ui.setDefaultOffsetButton.clicked.connect(self.setDefaultOffset)
+        #self.ui.setDefaultBPMButton.clicked.connect(self.setDefaultBPM)
+        self.ui.outputButton.clicked.connect(self.click_outputButton)
+        self.ui.BMOverwriteCheckAction.changed.connect(self.click_BMOverwriteCheck)
+
     # マップ選択ボタン
     def click_addButton(self):
         if not (selected_dir := SelectDir(self, 'マップ選択', 'input_dir', i_split=1)):
@@ -106,21 +107,21 @@ class UI(QtWidgets.QMainWindow):
 
         self.ui.startSpinBox.setValue(map.start)
         self.ui.endSpinBox.setValue(map.end)
+        self.ui.passtoSpinBox.setValue(map.passto)
         self.ui.fadeinSpinBox.setValue(map.fadein)
         self.ui.fadeoutSpinBox.setValue(map.fadeout)
-        self.ui.silenceSpinBox.setValue(map.silence)
         self.ui.startSpinBox.setEnabled(True)
         self.ui.endSpinBox.setEnabled(True)
-        if self.iSlot != 0:
-            self.ui.xfadeSpinBox.setEnabled(True)
-            self.ui.xfadeSpinBox.setValue(map.xfade)
-        else:
-            self.ui.xfadeSpinBox.setEnabled(False)
-            self.ui.xfadeSpinBox.setValue(0)
-            map.xfade = 0
+        self.ui.passtoSpinBox.setEnabled(True)
         self.ui.fadeinSpinBox.setEnabled(True)
         self.ui.fadeoutSpinBox.setEnabled(True)
-        self.ui.silenceSpinBox.setEnabled(True)
+        if self.iSlot != 0:
+            self.ui.passfromSpinBox.setEnabled(True)
+            self.ui.passfromSpinBox.setValue(map.passfrom)
+        else:
+            self.ui.passfromSpinBox.setEnabled(False)
+            self.ui.passfromSpinBox.setValue(0)
+            map.passfrom = map.start
 
         self.connect_parameter()
 
@@ -147,10 +148,11 @@ class UI(QtWidgets.QMainWindow):
         map.offset = selected_level['offset']
         map.start = selected_level['start']
         map.end = selected_level['end']
-        map.xfade = xfade if (xfade := selected_level['xfade']-selected_level['start']) > 0 else 0 
         map.fadein = fadein if (fadein := selected_level['fadein']-selected_level['start']) > 0 else 0 
         map.fadeout = fadeout if (fadeout := selected_level['end']-selected_level['fadeout']) > 0 else 0 
-        map.silence = selected_level['silence']
+        map.passto = selected_level['passto'] if (selected_level['end']-selected_level['passto']) > 0 else selected_level['end']
+        map.passfrom = selected_level['passfrom'] if (selected_level['passfrom']-selected_level['start']) > 0 else selected_level['start']
+
 
         self.ui.NJSSpinBox.setValue(map.njs)
         self.ui.OffsetSpinBox.setValue(map.offset)
@@ -158,10 +160,10 @@ class UI(QtWidgets.QMainWindow):
         self.ui.JDLabel.setText('{:.2f}'.format(JumpDistance(map.bpm, map.njs, map.offset)))
         self.ui.startSpinBox.setValue(map.start)
         self.ui.endSpinBox.setValue(map.end)
-        self.ui.xfadeSpinBox.setValue(map.xfade)
+        self.ui.passtoSpinBox.setValue(map.passto)
+        self.ui.passfromSpinBox.setValue(map.passfrom)
         self.ui.fadeinSpinBox.setValue(map.fadein)
         self.ui.fadeoutSpinBox.setValue(map.fadeout)
-        self.ui.silenceSpinBox.setValue(map.silence)
         
         self.connect_parameter()
         log.info(f'レベル選択: {map.level}')
@@ -176,14 +178,14 @@ class UI(QtWidgets.QMainWindow):
         self.ui.JDLabel.setText('{:.2f}'.format(JumpDistance(map.bpm, map.njs, map.offset)))
         map.start = self.ui.startSpinBox.value()
         map.end = self.ui.endSpinBox.value()
-        map.xfade = self.ui.xfadeSpinBox.value()
+        map.passto = self.ui.passtoSpinBox.value()
+        map.passfrom = self.ui.passfromSpinBox.value()
         map.fadein = self.ui.fadeinSpinBox.value()
         map.fadeout = self.ui.fadeoutSpinBox.value()
-        map.silence = self.ui.silenceSpinBox.value()
         log.debug(f'BPM:{map.bpm2} NJS:{map.njs} OFFSET:{map.offset}')
         log.debug(f'*start:{map.start} *end:{map.end}')
+        log.debug(f'*passto:{map.passto} *passfrom:{map.passfrom}')
         log.debug(f'*fadein:{map.fadein} *fadeout:{map.fadeout}')
-        log.debug(f'*xfade:{map.xfade} *silence:{map.fadeout}')
 
     def setDefaultNJS(self):
         log.info('NJSを既定値に戻す')
@@ -215,10 +217,10 @@ class UI(QtWidgets.QMainWindow):
         #self.ui.BPMSpinBox.textChanged.connect(self.update_parameter)
         self.ui.startSpinBox.textChanged.connect(self.update_parameter)
         self.ui.endSpinBox.textChanged.connect(self.update_parameter)
-        self.ui.xfadeSpinBox.textChanged.connect(self.update_parameter)
+        self.ui.passtoSpinBox.textChanged.connect(self.update_parameter)
+        self.ui.passfromSpinBox.textChanged.connect(self.update_parameter)
         self.ui.fadeinSpinBox.textChanged.connect(self.update_parameter)
         self.ui.fadeoutSpinBox.textChanged.connect(self.update_parameter)
-        self.ui.silenceSpinBox.textChanged.connect(self.update_parameter)
 
     # comboBox/SpinBoxの内容変更の検知を無効にする
     def disconnect_parameter(self):
@@ -230,10 +232,10 @@ class UI(QtWidgets.QMainWindow):
         #self.ui.BPMSpinBox.textChanged.disconnect()
         self.ui.startSpinBox.textChanged.disconnect()
         self.ui.endSpinBox.textChanged.disconnect()
-        self.ui.xfadeSpinBox.textChanged.disconnect()
+        self.ui.passtoSpinBox.textChanged.disconnect()
+        self.ui.passfromSpinBox.textChanged.disconnect()
         self.ui.fadeinSpinBox.textChanged.disconnect()
         self.ui.fadeoutSpinBox.textChanged.disconnect()
-        self.ui.silenceSpinBox.textChanged.disconnect()
 
     # スロット表示＆移動ボタンの更新
     def update_slot(self):
@@ -289,16 +291,16 @@ class UI(QtWidgets.QMainWindow):
 
         self.ui.startSpinBox.clear()
         self.ui.endSpinBox.clear()
-        self.ui.xfadeSpinBox.clear()
+        self.ui.passtoSpinBox.clear()
+        self.ui.passfromSpinBox.clear()
         self.ui.fadeinSpinBox.clear()
         self.ui.fadeoutSpinBox.clear()
-        self.ui.silenceSpinBox.clear()
         self.ui.startSpinBox.setEnabled(False)
         self.ui.endSpinBox.setEnabled(False)
-        self.ui.xfadeSpinBox.setEnabled(False)
+        self.ui.passtoSpinBox.setEnabled(False)
+        self.ui.passfromSpinBox.setEnabled(False)
         self.ui.fadeinSpinBox.setEnabled(False)
         self.ui.fadeoutSpinBox.setEnabled(False)
-        self.ui.silenceSpinBox.setEnabled(False)
 
         if self.maps[0] is None:
             self.ui.lineEdit.setEnabled(False)
@@ -421,6 +423,14 @@ class UI(QtWidgets.QMainWindow):
             log.error(f'{map.songname}')
             log.error(f'*end は *start より後ろの位置を指定してください！')
             return False
+        if map.passfrom < map.start:
+            log.error(f'{map.songname}')
+            log.error(f'*passfrom は *start より後ろの位置を指定してください！')
+            return False
+        if map.passto > map.end:
+            log.error(f'{map.songname}')
+            log.error(f'*passto は *end より前の位置を指定してください！')
+            return False
         return True
    
     # マップ生成＆音声結合
@@ -460,7 +470,6 @@ class UI(QtWidgets.QMainWindow):
         for i in range(n_map):
             map_list[i].speed = song_list[i].speed
             map_list[i].len = song_list[i].len
-            map_list[i].postXfade = song_list[i].postXfade
         newMap = NewMap(output_path, map_list)
         newMap.CalcTimeOffset()
         newMap.ConcatenateMaps()

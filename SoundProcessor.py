@@ -16,9 +16,8 @@ class Song():
         self.end        = None # [beat]
         self.fadein     = None # [beat]
         self.fadeout    = None # [beat]
-        self.xfade      = 0    # [beat]
-        self.silence    = None # [beat]
-        self.postXfade  = 0    # [beat]
+        self.passto     = None # [beat]
+        self.passfrom   = None # [beat]
 
     def Trimming(self):
         start = round45(beat2msec(self.start, self.bpm))
@@ -60,34 +59,23 @@ def EditSound(songs):
     for song in songs:
         song.sound = song.org_sound
         song.Trimming()
-        song.AddSilence()
+        #song.AddSilence()
         song.fade()
         #song.ChangeSpeed()
         song.len = len(song.sound)
     log.info('音声編集完了')
-
-# クロスフェード
-def Xfade(sound,preSong,postSong):
-    xfadeBeat = postSong.xfade
-    xfadeTime1 = beat2msec(xfadeBeat, preSong.bpm)
-    xfadeTime2 = beat2msec(xfadeBeat, postSong.bpm)
-    if xfadeTime1 < xfadeTime2:
-        silence = AudioSegment.silent(round45(xfadeTime2-xfadeTime1))
-        sound = sound + silence
-    elif xfadeTime1 > xfadeTime2:
-        newEnd = len(sound)-round45(xfadeTime1-xfadeTime2)
-        sound = sound[:newEnd]
-    preSong.len -= xfadeTime1
-    preSong.postXfade = msec2beat(xfadeTime2, preSong.bpm)
-    return sound, round45(xfadeTime2)
 
 # 音声結合
 def ConcatenateSongs(songs):
     log.info('音声結合中...')
     sound = songs[0].sound
     for i in range(1,len(songs)):
-        sound, xfadeTime = Xfade(sound, songs[i-1],songs[i])
-        sound = sound.append(songs[i].sound, crossfade=xfadeTime)
+        xoverTime1 = beat2msec(songs[i-1].end - songs[i-1].passto, songs[i-1].bpm)
+        xoverTime2 = beat2msec(songs[i].passfrom - songs[i].start, songs[i].bpm)
+        xoverTime = xoverTime1 + xoverTime2
+        xoverPosition = len(sound) - xoverTime
+        sound = sound.overlay(songs[i].sound, position=xoverPosition)
+        sound = sound + songs[i].sound[xoverTime:]
     log.info('音声結合完了')
     return sound
 

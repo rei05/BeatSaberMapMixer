@@ -23,7 +23,7 @@ EGNPATH = os.path.join(CWDIR, 'Engine')
 LOGDIR = os.path.join(CWDIR,'Logs')
 LOGPATH = None
 
-COMANDS = ['start','end','xfade','fadein','fadeout','silence']
+COMANDS = ['start','end','fadein','fadeout','passto','passfrom']
 
 #pydubのimport前にbinにパスを通す
 os.environ['PATH'] = '{};{}'.format(EGNPATH, os.environ['PATH'])
